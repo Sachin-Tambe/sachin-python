@@ -1,0 +1,135 @@
+import tkinter as tk
+from tkinter import messagebox 
+from openpyxl import Workbook
+from reportlab.lib.pagesizes import letter 
+from reportlab.pdfgen import canvas
+class hotel :
+    def __init__(self):
+        self.restaurnt_name = ''
+        self.restaurnt_menu = {}
+        self.entries = {}
+        self.overall_bill = 0
+        self.root = None 
+        self.sales_record = []
+
+    def read_details_from_file(self , filename):
+        with open(filename) as file :
+            user_input = file.readlines()
+        for line in user_input :
+            lines = line.strip().split(',')
+            self.restaurnt_name = lines[0].strip()
+            self.restaurnt_menu = eval(','.join(lines[1:]))
+    
+    def confirm_order(self):
+        total_bill = 0 
+        sale_record = []
+        for food , entry in self.entries.items():
+            try :
+                quantity = int(entry.get())
+                if quantity < 0 :
+                    raise ValueError 
+                price = self.restaurnt_menu[food]
+                if quantity > 0 :
+                    total_bill += price * quantity
+                    sale_record.append((food , price , quantity))
+            except ValueError :
+                 # Show error message if the input is not valid
+                messagebox.showerror("Input Error", f"Invalid quantity for {food}. Please enter a valid non-negative number.")
+        self.overall_bill  += total_bill 
+        self.sales_record.append(sale_record)
+
+        messagebox.showinfo("Order Confirmation" , "your order placed sucessfully".title())
+        choise = messagebox.askyesno("More Order" , "do you want more order".title())
+        if choise :
+            self.root.destroy()
+            self.show_menu()
+        else :
+            self.root.destroy()
+            messagebox.showinfo("Bill" , f"Your Bill is {self.overall_bill}")
+            self.save_sales_record_to_exel()
+            self.show_bill()
+            self.overall_bill = 0 
+    def save_sales_record_to_exel(self):
+        wb = Workbook()
+        ws = wb.active 
+        ws.append(['Food Item ' , 'Quantity' , 'price'])
+        for sales_record in self.sales_record :
+            for food , quantity , price in sales_record :
+                ws.append([food,price,quantity])
+            wb.save("sales_records.xlsx")
+        print("hello")
+    def show_bill(self):
+        pdf_filename = "billl.pdf"
+        c = canvas.Canvas(pdf_filename , pagesize=letter)
+        width , height = letter 
+        c.drawString(100 , height - 40 , f"Bill From {self.restaurnt_name}")
+        c.drawString(100 , height - 60 , f"Total Bill ₹{self.overall_bill}")
+
+        y= height-100
+        c.drawString(100, y, "Food Item")
+        c.drawString(300, y, "Price")
+        c.drawString(400, y, "Quantity")
+        y -= 20
+
+        for sale_recoed in self.sales_record :
+            for food , price , quantity in sale_recoed :
+                c.drawString(100 , y , food)
+                c.drawString(300, y, str(price))
+                c.drawString(400, y, str(quantity))
+                y -= 20
+
+        c.save()
+
+
+    def show_menu(self):
+        self.root = tk.Tk()
+        self.root.title("Launch Menu")
+        self.entries = {}
+        for food , price in self.restaurnt_menu.items():
+            frame = tk.Frame(self.root)
+            frame.pack()
+            tk.Label(frame , text=f'{food} ₹{price}').pack(side='left')
+            entry = tk.Entry(frame)
+            entry.insert(0, '0')  # Set the default value to 0
+            entry.pack(side='right')
+            self.entries[food] = entry
+        coanfirm_button =  tk.Button(self.root , text='Place Order' , command=self.confirm_order).pack()
+        self.root.mainloop()
+
+
+    
+    def start_app(self):
+   
+        window = tk.Tk()
+        window.title(self.restaurnt_name)
+        window.geometry('500x500')
+        Breakfast_button = tk.Button(window,text='Breakfast Menu' , command=self.show_breakfast_menu)
+        Breakfast_button.pack()
+        Brunch  = tk.Button(window,text='Brunch Menu' , command=self.show_Brunch_menu)
+        Brunch.pack()
+        Lunch   = tk.Button(window,text='Lunch Menu' , command=self.show_Lunch_menu)
+        Lunch.pack()
+        Afternoon_Tea   = tk.Button(window,text='Afternoon Tea Menu' , command=self.show_Afternoon_Tea_menu)
+        Afternoon_Tea.pack()
+        Dinner    = tk.Button(window,text='Dinner Menu' , command=self.show_Dinner_menu)
+        Dinner.pack()
+        window.mainloop()
+
+    def show_breakfast_menu(self):
+        self.read_details_from_file('Breakfast.txt')
+        self.show_menu()
+    def show_Brunch_menu(self):
+        self.read_details_from_file('Brunch.txt')
+        self.show_menu()
+    def show_Lunch_menu(self):
+        self.read_details_from_file('Lunch.txt')
+        self.show_menu()
+    def show_Afternoon_Tea_menu(self):
+        self.read_details_from_file('Afternoon_Tea.txt')
+        self.show_menu()
+    def show_Dinner_menu(self):
+        self.read_details_from_file('Dinner.txt')
+        self.show_menu()
+if __name__ == "__main__":
+    rest = hotel()
+    rest.start_app()

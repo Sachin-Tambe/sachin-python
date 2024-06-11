@@ -1,118 +1,164 @@
 import tkinter as tk
 from tkinter import messagebox
-from PIL import Image, ImageTk
+from openpyxl import Workbook
 from reportlab.lib.pagesizes import letter
 from reportlab.pdfgen import canvas
-import os
+import os 
 
-class HotelManagement:
+class Hotel:
     def __init__(self):
-        self.R_N = ''
-        self.R_M = {}
-        self.selected_items = {}
+        self.restaurant_name = ''
+        self.restaurant_menu = {}
+        self.entries = {}
         self.overall_bill = 0
+        self.root = None
+        self.sales_record = []
 
-    def read_details_from_file_launch(self, file_path):
-        with open(file_path, 'r') as file:
-            lines = file.readlines()
-            for line in lines:
-                parts = line.strip().split(',')
-                self.R_N = parts[0].strip()
-                self.R_M = eval(','.join(parts[1:]))
+    def read_details_from_file(self, filename):
+        with open(filename) as file:
+            user_input = file.readlines()
+        for line in user_input:
+            lines = line.strip().split(',')
+            self.restaurant_name = lines[0].strip()
+            self.restaurant_menu = eval(','.join(lines[1:]))
 
-    def set_image(self, image_path):
-        self.restaurent_image = Image.open(image_path)
-        self.restaurent_image = self.restaurent_image.resize((200, 200))
-        self.tk_image = ImageTk.PhotoImage(self.restaurent_image)
-
-    def create_button_launch(self):
-        new_window = tk.Toplevel()
-        new_window.title("Launch Window")
-        new_window.geometry('500x500')
-
-        y_position = 130
-        for item, price in self.R_M.items():
-            label = tk.Label(new_window, text=f"{item} - ₹{price}")
-            label.place(x=100, y=y_position)
-
-            entry_var = tk.IntVar()
-            entry = tk.Entry(new_window, textvariable=entry_var)
-            entry.place(x=300, y=y_position)
-
-            self.selected_items[item] = (price, entry_var)
-            y_position += 30
-
-        confirm_button = tk.Button(new_window, text="Confirm", command=self.confirm_order)
-        confirm_button.place(x=200, y=y_position+30)
-
-    def generate_bill_pdf(items, total_bill):
-        # Create a PDF file
-        file_path = "bill.pdf"
-        c = canvas.Canvas(file_path, pagesize=letter)
-
-        # Add content to the PDF
-        c.setFont("Helvetica-Bold", 16)
-        c.drawString(100, 750, "Invoice")
-        c.drawString(100, 730, "-------")
-
-        c.setFont("Helvetica", 12)
-        y_position = 700
-        for item, price in items.items():
-            c.drawString(100, y_position, f"{item}: ₹{price}")
-            y_position -= 20
-
-        # Add total bill
-        c.drawString(100, y_position, f"Total: ₹{total_bill}")
-
-        # Save the PDF file
-        c.save()
-        print(f"Bill generated successfully: {file_path}")
-
-        # Open the PDF file after generatingA
-        os.startfile(file_path)
-
-    # Example usage
-    items = {
-        "Item 1": 100,
-        "Item 2": 200,
-        "Item 3": 150
-    }
-    total_bill = sum(items.values())
-
-    generate_bill_pdf(items, total_bill)
     def confirm_order(self):
-        order_bill = 0
-        for item, (price, entry_var) in self.selected_items.items():
-            quantity = entry_var.get()
-            order_bill += price * quantity
-            print(f"{item}: {quantity} x ₹{price} = ₹{price * quantity}")
+        total_bill = 0
+        sale_record = []
+        for food, entry in self.entries.items():
+            try:
+                quantity = int(entry.get())
+                if quantity < 0:
+                    raise ValueError
+                price = self.restaurant_menu[food]
+                if quantity > 0:
+                    total_bill += price * quantity
+                    sale_record.append((food, price, quantity))
+            except ValueError:
+                messagebox.showerror("Input Error", f"Invalid quantity for {food}. Please enter a valid non-negative number.")
+        self.overall_bill += total_bill
+        self.sales_record.append(sale_record)
 
-        more_order = messagebox.askyesno("More Orders", "Do you want to order more items?")
-        if not more_order:
-            print(f"Order Bill: ₹{order_bill}")
-            self.overall_bill += order_bill  # Update overall_bill with order_bill
-            print(f"Overall Bill: ₹{self.overall_bill}")
-            generate_bill = messagebox.askyesno("Generate Bill", "Do you want to generate the bill?")
-            if generate_bill:
-                self.generate_bill_pdf(self.overall_bill)
-                # Clear selected_items dictionary after generating bill
-                self.selected_items.clear()
+        messagebox.showinfo("Order Confirmation", "Your order placed successfully".title())
+        choice = messagebox.askyesno("More Order", "Do you want more order".title())
+        if choice:
+            self.root.destroy()
+            self.show_menu()
+        else:
+            self.root.destroy()
+            messagebox.showinfo("Bill", f"Your Bill is {self.overall_bill}")
+            self.save_sales_record_to_excel()
+            self.show_bill()
+            self.overall_bill = 0
 
-rest = HotelManagement()
-rest.read_details_from_file_launch(r'C:\Users\sachi\OneDrive\Desktop\sachin python\details.txt')
+    def save_sales_record_to_excel(self):
+        wb = Workbook()
+        ws = wb.active
+        ws.append(['Food Item', 'Quantity', 'Price'])
+        for sales_record in self.sales_record:
+            for food, quantity, price in sales_record:
+                ws.append([food, price, quantity])
+        wb.save("sales_records.xlsx")
 
-window = tk.Tk()
-window.title(rest.R_N)
-window.geometry('900x700')
+    def show_bill(self):
+        pdf_filename = "bill.pdf"
+        c = canvas.Canvas(pdf_filename, pagesize=letter)
+        width, height = letter
+        c.drawString(100, height - 40, f"Bill From {self.restaurant_name}")
+        c.drawString(100, height - 60, f"Total Bill ₹{self.overall_bill}")
 
-title_label = tk.Label(window, text=rest.R_N.title(), font=('Helvetica', 22))
-title_label.place(x=650, y=310)
+        y = height - 100
+        c.drawString(100, y, "Food Item")
+        c.drawString(300, y, "Price")
+        c.drawString(400, y, "Quantity")
+        y -= 20
 
-rest.set_image(r"C:\Users\sachi\OneDrive\Desktop\sachin python\iam.png")
-image_label = tk.Label(window, image=rest.tk_image)
-image_label.place(x=650, y=100)
+        for sale_record in self.sales_record:
+            for food, price, quantity in sale_record:
+                c.drawString(100, y, food)
+                c.drawString(300, y, str(price))
+                c.drawString(400, y, str(quantity))
+                y -= 20
 
-launch_button_main_window = tk.Button(window, text="View Launch Menu", command=rest.create_button_launch)
-launch_button_main_window.place(height=50, width=200, x=650, y=500)
+        c.save()
+        os.startfile(pdf_filename)
 
-window.mainloop()
+    def show_menu(self):
+        self.root = tk.Tk()
+        self.root.title("Launch Menu")
+        self.root.geometry("400x400")
+        self.root.configure(bg="#F0F0F0")
+
+        heading_label = tk.Label(self.root, text="Menu", font=("Arial", 20, "bold"), bg="#F0F0F0")
+        heading_label.pack(pady=10)
+
+        for food, price in self.restaurant_menu.items():
+            frame = tk.Frame(self.root, bg="#F0F0F0")
+            frame.pack(fill=tk.X, padx=10, pady=5)
+            food_label = tk.Label(frame, text=f'{food}', bg="#F0F0F0")
+            food_label.pack(side='left', padx=(10, 50))
+            price_label = tk.Label(frame, text=f'₹{price}', bg="#F0F0F0")
+            price_label.pack(side='right')
+            entry = tk.Entry(frame, width=5)
+            entry.insert(0, '0')  # Set the default value to 0
+            entry.pack(side='right', padx=(0, 10))
+            self.entries[food] = entry
+
+        confirm_order_button = tk.Button(self.root, text='Place Order', command=self.confirm_order, bg="#4CAF50", fg="white")
+        confirm_order_button.pack(pady=10)
+
+        self.root.mainloop()
+
+    def start_app(self):
+        window = tk.Tk()
+        window.title(self.restaurant_name)
+        window.geometry('300x200')
+        window.configure(bg="#F0F0F0")
+
+        button_styles = {
+            "font": ("Arial", 12),
+            "bg": "#2196F3",
+            "fg": "white",
+            "padx": 10,
+            "pady": 5,
+            "bd": 0,
+            "relief": tk.FLAT,
+            "width": 20
+        }
+
+        breakfast_button = tk.Button(window, text='Breakfast Menu', command=self.show_breakfast_menu, **button_styles)
+        breakfast_button.pack(pady=5)
+        brunch_button = tk.Button(window, text='Brunch Menu', command=self.show_Brunch_menu, **button_styles)
+        brunch_button.pack(pady=5)
+        lunch_button = tk.Button(window, text='Lunch Menu', command=self.show_Lunch_menu, **button_styles)
+        lunch_button.pack(pady=5)
+        afternoon_tea_button = tk.Button(window, text='Afternoon Tea Menu', command=self.show_Afternoon_Tea_menu, **button_styles)
+        afternoon_tea_button.pack(pady=5)
+        dinner_button = tk.Button(window, text='Dinner Menu', command=self.show_Dinner_menu, **button_styles)
+        dinner_button.pack(pady=5)
+
+        window.mainloop()
+
+    def show_breakfast_menu(self):
+        self.read_details_from_file('Breakfast.txt')
+        self.show_menu()
+
+    def show_Brunch_menu(self):
+        self.read_details_from_file('Brunch.txt')
+        self.show_menu()
+
+    def show_Lunch_menu(self):
+        self.read_details_from_file('Lunch.txt')
+        self.show_menu()
+
+    def show_Afternoon_Tea_menu(self):
+        self.read_details_from_file('Afternoon_Tea.txt')
+        self.show_menu()
+
+    def show_Dinner_menu(self):
+        self.read_details_from_file('Dinner.txt')
+        self.show_menu()
+
+if __name__ == "__main__":
+    rest = Hotel()
+    rest.start_app()
